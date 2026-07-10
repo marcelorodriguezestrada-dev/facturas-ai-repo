@@ -108,3 +108,4 @@ src/
 - El token de WhatsApp del setup rápido dura 24hs — para dejarlo corriendo más
   tiempo sin tocar nada, hay que generar un token de sistema permanente (gratis,
   pero requiere verificar tu Business Manager).
+# facturas-ai-repo
