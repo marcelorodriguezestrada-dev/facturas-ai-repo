@@ -10,9 +10,9 @@ A partir de ahora, cada vez que generes o recibas una factura, mandame la foto a
 
   pedir_cuit: `Antes de arrancar, necesito tu CUIT.
 
-Mandámelo así: 20-12345678-9`,
+Mandámelo así: 20-12345678-6`,
 
-  cuit_invalido: `Ese CUIT no me cierra el dígito verificador 🤔 ¿Lo podés revisar y mandar de nuevo? Formato: 20-12345678-9`,
+  cuit_invalido: `Ese CUIT no me cierra el dígito verificador 🤔 ¿Lo podés revisar y mandar de nuevo? Formato: 20-12345678-6`,
 
   cuit_ok: (cuit: string) =>
     `Perfecto, quedaste registrado con CUIT ${cuit} ✓
