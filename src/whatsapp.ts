@@ -15,12 +15,18 @@ async function callWhatsAppAPI(body: object) {
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    console.error("[whatsapp] error:", await res.text());
+  const raw = await res.text();
+  let data: any = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = raw;
   }
-  return res.json();
+  if (!res.ok) {
+    console.error("[whatsapp] error:", data);
+  }
+  return data;
 }
-
 export async function sendMessage(phone: string, text: string) {
   return callWhatsAppAPI({
     messaging_product: "whatsapp",
