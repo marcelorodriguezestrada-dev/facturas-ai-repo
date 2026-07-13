@@ -6,13 +6,16 @@ import { createWorker } from "tesseract.js";
  * pero para la prueba gratis alcanza. Si más adelante necesitás más precisión,
  * se puede swapear esta función sin tocar el resto del código.
  */
-export async function runOCR(imageUrl: string): Promise<string> {
+export async function runOCR(imageBuffer: Buffer): Promise<string> {
   const worker = await createWorker("spa"); // español
-  const {
-    data: { text },
-  } = await worker.recognize(imageUrl);
-  await worker.terminate();
-  return text;
+  try {
+    const {
+      data: { text },
+    } = await worker.recognize(imageBuffer);
+    return text;
+  } finally {
+    await worker.terminate();
+  }
 }
 
 /**

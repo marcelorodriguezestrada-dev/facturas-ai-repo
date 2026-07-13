@@ -30,6 +30,9 @@ async function callWhatsAppAPI(body: object) {
     },
     body: JSON.stringify(body),
   });
+  // Leemos el body UNA sola vez (como texto) y de ahí intentamos parsear JSON.
+  // Antes se leía dos veces (text() y json()), lo cual tira
+  // "Body is unusable: Body has already been read" en el segundo intento.
   const raw = await res.text();
   let data: any = null;
   try {
@@ -68,4 +71,23 @@ export async function getMediaUrl(mediaId: string): Promise<string> {
   });
   const data = await res.json();
   return data.url;
+}
+
+/**
+ * Descarga los BYTES reales de la imagen (no solo la URL).
+ * IMPORTANTE: la URL que da Meta requiere el header de Authorization para
+ * poder descargarse — si se le pasa esa URL directo a Tesseract (u otra
+ * librería) sin ese header, Meta devuelve un error en vez de la imagen,
+ * y la librería de OCR revienta al intentar leerlo como si fuera una foto.
+ */
+export async function getMediaBuffer(mediaId: string): Promise<Buffer> {
+  const mediaUrl = await getMediaUrl(mediaId);
+  const res = await fetch(mediaUrl, {
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+  });
+  if (!res.ok) {
+    throw new Error(`No se pudo descargar la imagen (status ${res.status})`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }

@@ -1,12 +1,24 @@
 import "dotenv/config";
 import express from "express";
 import { getOrCreateSession, updateSession, guardarFactura, getFacturasDelMes, UserSession } from "./firebase";
-import { sendMessage, sendMedia, getMediaUrl } from "./whatsapp";
+import { sendMessage, sendMedia, getMediaBuffer } from "./whatsapp";
 import { runOCR, validarCAE } from "./ocr";
 import { callLLM, buildCategorizationPrompt, buildResumenMensualPrompt } from "./prompts";
 import { generarPDFResumen } from "./pdf";
 import { validarFormatoCUIT } from "./cuit";
 import { MENSAJES } from "./messages";
+
+// ── Red de seguridad ──────────────────────────────────────────────────────
+// Algunas librerías (como Tesseract, que corre en workers internos) pueden
+// tirar errores que se escapan del try/catch normal y tumban todo el proceso
+// de Node. Esto loguea el error pero mantiene el servidor vivo, para que un
+// problema con LA FOTO DE UN USUARIO no tire abajo el bot para todos los demás.
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException] Error no capturado, el servidor sigue corriendo:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection] Promesa rechazada sin capturar:", reason);
+});
 
 const app = express();
 app.use(express.json());
@@ -34,14 +46,13 @@ app.post("/webhook", async (req, res) => {
     if (!message) return;
 
     const phone = message.from;
-    console.log("DEBUG - número recibido en webhook:", JSON.stringify(phone));
     const session = await getOrCreateSession(phone);
 
     if (message.type === "text") {
       await handleText(session, message.text.body);
     } else if (message.type === "image") {
-      const mediaUrl = await getMediaUrl(message.image.id);
-      await handleImage(session, mediaUrl);
+      const mediaBuffer = await getMediaBuffer(message.image.id);
+      await handleImage(session, mediaBuffer);
     } else {
       await sendMessage(phone, MENSAJES.no_es_imagen);
     }
@@ -82,7 +93,7 @@ async function handleText(session: UserSession, texto: string) {
   return sendMessage(phone, MENSAJES.no_es_imagen);
 }
 
-async function handleImage(session: UserSession, imageUrl: string) {
+async function handleImage(session: UserSession, imageBuffer: Buffer) {
   const phone = session.phone;
 
   if (session.plan === "gratis" && session.facturasEsteMes >= session.limiteGratis) {
@@ -91,24 +102,31 @@ async function handleImage(session: UserSession, imageUrl: string) {
 
   await sendMessage(phone, MENSAJES.procesando);
 
-  const ocrText = await runOCR(imageUrl);
-  const { valido: caeValido } = await validarCAE(ocrText);
-  const categorizacion = await callLLM(buildCategorizationPrompt(ocrText));
+  try {
+    const ocrText = await runOCR(imageBuffer);
+    const { valido: caeValido } = await validarCAE(ocrText);
+    const categorizacion = await callLLM(buildCategorizationPrompt(ocrText));
 
-  await guardarFactura(phone, {
-    ...categorizacion,
-    caeValido,
-    fecha: categorizacion.fecha || new Date().toISOString().slice(0, 10),
-  });
-  await updateSession(phone, { facturasEsteMes: (session.facturasEsteMes || 0) + 1 });
+    await guardarFactura(phone, {
+      ...categorizacion,
+      caeValido,
+      fecha: categorizacion.fecha || new Date().toISOString().slice(0, 10),
+    });
+    await updateSession(phone, { facturasEsteMes: (session.facturasEsteMes || 0) + 1 });
 
-  if (categorizacion.needsReview || !caeValido) {
-    return sendMessage(phone, MENSAJES.factura_revisar(categorizacion.proveedor || "este proveedor"));
+    if (categorizacion.needsReview || !caeValido) {
+      return sendMessage(phone, MENSAJES.factura_revisar(categorizacion.proveedor || "este proveedor"));
+    }
+    return sendMessage(
+      phone,
+      MENSAJES.factura_ok(categorizacion.proveedor, categorizacion.monto, categorizacion.categoria, (session.facturasEsteMes || 0) + 1)
+    );
+  } catch (err) {
+    // Si falla el OCR o la categorización (foto ilegible, formato raro, etc.)
+    // avisamos al usuario en vez de dejarlo esperando una respuesta que nunca llega.
+    console.error("[handleImage] error procesando factura:", err);
+    return sendMessage(phone, "No pude leer bien esa imagen 😕 Probá con una foto más nítida, bien iluminada y derecha.");
   }
-  return sendMessage(
-    phone,
-    MENSAJES.factura_ok(categorizacion.proveedor, categorizacion.monto, categorizacion.categoria, (session.facturasEsteMes || 0) + 1)
-  );
 }
 
 async function enviarResumenMensual(session: UserSession) {
