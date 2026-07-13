@@ -70,6 +70,12 @@ export async function getMediaUrl(mediaId: string): Promise<string> {
     headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
   });
   const data = await res.json();
+  if (!data.url) {
+    // Esto pasa típicamente si el token venció, si el media ID ya expiró
+    // (las URLs/IDs de Meta duran poco tiempo), o si falta algún permiso.
+    console.error("[getMediaUrl] Meta no devolvió una URL válida. Respuesta completa:", JSON.stringify(data));
+    throw new Error("No se pudo obtener la URL de la imagen desde Meta");
+  }
   return data.url;
 }
 
