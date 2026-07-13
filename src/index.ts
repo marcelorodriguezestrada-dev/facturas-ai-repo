@@ -51,8 +51,15 @@ app.post("/webhook", async (req, res) => {
     if (message.type === "text") {
       await handleText(session, message.text.body);
     } else if (message.type === "image") {
-      const mediaBuffer = await getMediaBuffer(message.image.id);
-      await handleImage(session, mediaBuffer);
+      try {
+        const mediaBuffer = await getMediaBuffer(message.image.id);
+        await handleImage(session, mediaBuffer);
+      } catch (mediaErr) {
+        // Si falla la descarga de la imagen (token vencido, media ID expirado, etc.)
+        // avisamos al usuario en vez de dejarlo esperando en silencio.
+        console.error("[webhook] error descargando la imagen:", mediaErr);
+        await sendMessage(phone, "No pude descargar esa imagen 😕 Probá mandarla de nuevo en unos segundos.");
+      }
     } else {
       await sendMessage(phone, MENSAJES.no_es_imagen);
     }
