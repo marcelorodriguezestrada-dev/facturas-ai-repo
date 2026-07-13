@@ -34,6 +34,7 @@ app.post("/webhook", async (req, res) => {
     if (!message) return;
 
     const phone = message.from;
+    console.log("DEBUG - número recibido en webhook:", JSON.stringify(phone));
     const session = await getOrCreateSession(phone);
 
     if (message.type === "text") {
