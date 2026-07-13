@@ -134,15 +134,25 @@ async function enviarResumenMensual(session: UserSession) {
   const facturas = await getFacturasDelMes(phone);
   if (facturas.length === 0) return sendMessage(phone, MENSAJES.sin_facturas);
 
-  const mes = new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const resumen = await callLLM(buildResumenMensualPrompt(facturas, mes, session.cuit || ""));
-  const pdfUrl = await generarPDFResumen(resumen, facturas, session.cuit || "", mes);
+  try {
+    const mes = new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+    const resumen = await callLLM(buildResumenMensualPrompt(facturas, mes, session.cuit || ""));
+    const pdfUrl = await generarPDFResumen(resumen, facturas, session.cuit || "", mes);
 
-  await sendMessage(phone, `📊 Resumen de ${mes} listo — te lo mando en PDF 👇`);
-  await sendMedia(phone, pdfUrl);
+    await sendMessage(phone, `📊 Resumen de ${mes} listo — te lo mando en PDF 👇`);
+    await sendMedia(phone, pdfUrl);
 
-  if (session.contadorPhone) {
-    await sendMedia(session.contadorPhone, pdfUrl, `Resumen de ${session.cuit} — ${mes}`);
+    if (session.contadorPhone) {
+      await sendMedia(session.contadorPhone, pdfUrl, `Resumen de ${session.cuit} — ${mes}`);
+    }
+  } catch (err) {
+    // Causa más común en este MVP: Firebase Storage todavía no está activado
+    // (necesita el plan Blaze), así que subirPDFAStorage() falla acá.
+    console.error("[enviarResumenMensual] error:", err);
+    return sendMessage(
+      phone,
+      "No pude generar el PDF del resumen 😕 (esto suele pasar si todavía no está activado el storage de archivos — avisale al admin del bot)."
+    );
   }
 }
 
