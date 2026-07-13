@@ -104,6 +104,7 @@ async function handleImage(session: UserSession, imageBuffer: Buffer) {
 
   try {
     const ocrText = await runOCR(imageBuffer);
+    console.log("DEBUG - texto OCR extraído:", ocrText);
     const { valido: caeValido } = await validarCAE(ocrText);
     const categorizacion = await callLLM(buildCategorizationPrompt(ocrText));
 
