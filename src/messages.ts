@@ -35,6 +35,16 @@ Categoría: ${categoria}
 
 Van ${count} facturas este mes.`,
 
+  factura_ok_sin_cae: (proveedor: string, monto: number, categoria: string, count: number) =>
+    `✅ Factura procesada
+Proveedor: ${proveedor}
+Monto: $${monto.toLocaleString("es-AR")}
+Categoría: ${categoria}
+
+⚠️ No encontré un CAE en este comprobante — puede ser un tique simple de controlador fiscal en vez de factura electrónica. La guardé igual, pero convendría que confirmes si es válida para tu categoría de monotributo.
+
+Van ${count} facturas este mes.`,
+
   factura_revisar: (proveedor: string) =>
     `⚠️ La factura de ${proveedor} necesita revisión manual (no pude leerla con confianza). La guardé igual, marcada como "pendiente".`,
 

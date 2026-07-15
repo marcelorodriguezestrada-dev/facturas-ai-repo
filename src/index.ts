@@ -122,8 +122,14 @@ async function handleImage(session: UserSession, imageBuffer: Buffer) {
     });
     await updateSession(phone, { facturasEsteMes: (session.facturasEsteMes || 0) + 1 });
 
-    if (categorizacion.needsReview || !caeValido) {
+    if (categorizacion.needsReview) {
       return sendMessage(phone, MENSAJES.factura_revisar(categorizacion.proveedor || "este proveedor"));
+    }
+    if (!caeValido) {
+      return sendMessage(
+        phone,
+        MENSAJES.factura_ok_sin_cae(categorizacion.proveedor, categorizacion.monto, categorizacion.categoria, (session.facturasEsteMes || 0) + 1)
+      );
     }
     return sendMessage(
       phone,
@@ -139,10 +145,11 @@ async function handleImage(session: UserSession, imageBuffer: Buffer) {
 
 async function enviarResumenMensual(session: UserSession) {
   const phone = session.phone;
-  const facturas = await getFacturasDelMes(phone);
-  if (facturas.length === 0) return sendMessage(phone, MENSAJES.sin_facturas);
 
   try {
+    const facturas = await getFacturasDelMes(phone);
+    if (facturas.length === 0) return sendMessage(phone, MENSAJES.sin_facturas);
+
     const mes = new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric" });
     const resumen = await callLLM(buildResumenMensualPrompt(facturas, mes, session.cuit || ""));
     const pdfUrl = await generarPDFResumen(resumen, facturas, session.cuit || "", mes);
@@ -156,10 +163,12 @@ async function enviarResumenMensual(session: UserSession) {
   } catch (err) {
     // Causa más común en este MVP: Firebase Storage todavía no está activado
     // (necesita el plan Blaze), así que subirPDFAStorage() falla acá.
+    // También puede fallar acá la lectura de Firestore si hay algún problema
+    // de permisos o de índice.
     console.error("[enviarResumenMensual] error:", err);
     return sendMessage(
       phone,
-      "No pude generar el PDF del resumen 😕 (esto suele pasar si todavía no está activado el storage de archivos — avisale al admin del bot)."
+      "No pude generar el resumen 😕 (esto suele pasar si todavía no está activado el storage de archivos, o hay un problema leyendo tus facturas — avisale al admin del bot)."
     );
   }
 }
