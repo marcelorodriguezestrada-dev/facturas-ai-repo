@@ -72,7 +72,7 @@ export async function sendMedia(phone: string, url: string, caption?: string) {
 export async function uploadMediaToWhatsApp(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
-  form.append("file", new Blob([buffer], { type: mimeType }), filename);
+  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
 
   const res = await fetch(`https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/media`, {
     method: "POST",
