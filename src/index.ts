@@ -1,10 +1,10 @@
 import "dotenv/config";
 import express from "express";
 import { getOrCreateSession, updateSession, guardarFactura, getFacturasDelMes, UserSession } from "./firebase";
-import { sendMessage, sendMedia, getMediaBuffer } from "./whatsapp";
+import { sendMessage, sendDocumentById, uploadMediaToWhatsApp, getMediaBuffer } from "./whatsapp";
 import { runOCR, validarCAE } from "./ocr";
 import { callLLM, buildCategorizationPrompt, buildResumenMensualPrompt } from "./prompts";
-import { generarPDFResumen } from "./pdf";
+import { generarPDFBuffer } from "./pdf";
 import { validarFormatoCUIT } from "./cuit";
 import { MENSAJES } from "./messages";
 
@@ -152,23 +152,21 @@ async function enviarResumenMensual(session: UserSession) {
 
     const mes = new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric" });
     const resumen = await callLLM(buildResumenMensualPrompt(facturas, mes, session.cuit || ""));
-    const pdfUrl = await generarPDFResumen(resumen, facturas, session.cuit || "", mes);
+    const pdfBuffer = await generarPDFBuffer(resumen, facturas, session.cuit || "", mes);
+    const filename = `resumen-${mes.replace(/\s/g, "-")}.pdf`;
+    const mediaId = await uploadMediaToWhatsApp(pdfBuffer, filename, "application/pdf");
 
     await sendMessage(phone, `📊 Resumen de ${mes} listo — te lo mando en PDF 👇`);
-    await sendMedia(phone, pdfUrl);
+    await sendDocumentById(phone, mediaId, filename);
 
     if (session.contadorPhone) {
-      await sendMedia(session.contadorPhone, pdfUrl, `Resumen de ${session.cuit} — ${mes}`);
+      await sendDocumentById(session.contadorPhone, mediaId, filename, `Resumen de ${session.cuit} — ${mes}`);
     }
   } catch (err) {
-    // Causa más común en este MVP: Firebase Storage todavía no está activado
-    // (necesita el plan Blaze), así que subirPDFAStorage() falla acá.
-    // También puede fallar acá la lectura de Firestore si hay algún problema
-    // de permisos o de índice.
     console.error("[enviarResumenMensual] error:", err);
     return sendMessage(
       phone,
-      "No pude generar el resumen 😕 (esto suele pasar si todavía no está activado el storage de archivos, o hay un problema leyendo tus facturas — avisale al admin del bot)."
+      "No pude generar el resumen 😕 Probá de nuevo en un rato — si sigue fallando, avisale al admin del bot."
     );
   }
 }

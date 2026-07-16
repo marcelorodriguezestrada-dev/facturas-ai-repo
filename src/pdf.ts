@@ -1,6 +1,5 @@
 // @ts-ignore — pdfmake no trae tipos perfectos para esta forma de uso
 import PdfPrinter from "pdfmake";
-import { subirPDFAStorage } from "./firebase";
 
 const FONTS = {
   Helvetica: {
@@ -11,7 +10,7 @@ const FONTS = {
   },
 };
 
-export async function generarPDFResumen(
+export async function generarPDFBuffer(
   resumen: {
     total_mes: number;
     por_categoria: { categoria: string; monto: number; porcentaje: number }[];
@@ -21,7 +20,7 @@ export async function generarPDFResumen(
   facturas: any[],
   cuit: string,
   mes: string
-): Promise<string> {
+): Promise<Buffer> {
   const printer = new PdfPrinter(FONTS);
 
   const docDefinition = {
@@ -108,11 +107,7 @@ export async function generarPDFResumen(
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
     pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    pdfDoc.on("end", async () => {
-      const buffer = Buffer.concat(chunks);
-      const url = await subirPDFAStorage(buffer, `resumenes/${cuit}/${mes}.pdf`);
-      resolve(url);
-    });
+    pdfDoc.on("end", () => resolve(Buffer.concat(chunks)));
     pdfDoc.on("error", reject);
     pdfDoc.end();
   });

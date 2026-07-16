@@ -64,6 +64,39 @@ export async function sendMedia(phone: string, url: string, caption?: string) {
   });
 }
 
+/**
+ * Sube un archivo directo a los servidores de Meta (gratis, no necesita
+ * storage propio como Firebase Storage/S3). El ID que devuelve se puede
+ * usar para mandar el documento sin depender de una URL pública externa.
+ */
+export async function uploadMediaToWhatsApp(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("file", new Blob([buffer], { type: mimeType }), filename);
+
+  const res = await fetch(`https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+    body: form,
+  });
+  const data = await res.json();
+  if (!data.id) {
+    console.error("[uploadMediaToWhatsApp] Meta no devolvió un media id:", JSON.stringify(data));
+    throw new Error("No se pudo subir el archivo a WhatsApp");
+  }
+  return data.id;
+}
+
+/** Manda un documento ya subido a Meta (por ID), sin necesitar URL pública. */
+export async function sendDocumentById(phone: string, mediaId: string, filename: string, caption?: string) {
+  return callWhatsAppAPI({
+    messaging_product: "whatsapp",
+    to: normalizeArgentinePhone(phone),
+    type: "document",
+    document: { id: mediaId, filename, caption: caption || "" },
+  });
+}
+
 // Descarga la imagen que mandó el usuario (Meta la sirve detrás de su propia URL temporal)
 export async function getMediaUrl(mediaId: string): Promise<string> {
   const res = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
